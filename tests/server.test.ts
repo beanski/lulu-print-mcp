@@ -69,12 +69,23 @@ describe("MCP server", () => {
     expect(fake.requests).toHaveLength(0);
   });
 
-  it("reports a cross-field input error without calling Lulu", async () => {
+  it("rejects unknown fields without calling Lulu", async () => {
     const { client, fake } = await connect();
-    const result = await client.callTool({ name: "update_webhook", arguments: { id: "abc" } });
+    const args = structuredClone(FIXTURES.create_print_job!.minimal) as any;
+    args.shipping_address.state = "UT";
+    const result = await client.callTool({ name: "create_print_job", arguments: args });
     expect(result.isError).toBe(true);
-    expect(text(result)).toMatch(/at least one of url, topics or is_active/);
+    expect(text(result)).toMatch(/state/);
     expect(fake.requests).toHaveLength(0);
+
+    const top = await client.callTool({ name: "get_print_job", arguments: { id: "1", extra: true } });
+    expect(top.isError).toBe(true);
+  });
+
+  it("advertises that tools take no extra fields", async () => {
+    const { client } = await connect();
+    const { tools } = await client.listTools();
+    for (const tool of tools) expect(tool.inputSchema.additionalProperties, tool.name).toBe(false);
   });
 
   it("says when Lulu returns no content, and passes text through", async () => {

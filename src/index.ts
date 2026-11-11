@@ -9,6 +9,7 @@ export {
 export {
   BASE_URLS,
   DEFAULT_TIMEOUT_MS,
+  MAX_TIMEOUT_MS,
   loadConfig,
   TOKEN_PATH,
   type LuluConfig,
@@ -19,7 +20,6 @@ export {
   LuluAuthError,
   LuluConfigError,
   LuluError,
-  LuluInputError,
   LuluNetworkError,
 } from "./errors.js";
 export { createLuluServer, runTool, SERVER_NAME } from "./server.js";

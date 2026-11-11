@@ -37,8 +37,9 @@ describe("loadConfig", () => {
 
   it("reads a custom timeout and rejects a bad one", () => {
     expect(loadConfig({ ...keys, LULU_TIMEOUT_MS: "5000" }).timeoutMs).toBe(5000);
+    expect(loadConfig({ ...keys, LULU_TIMEOUT_MS: "2147483647" }).timeoutMs).toBe(2147483647);
     expect(loadConfig({ ...keys, LULU_TIMEOUT_MS: "" }).timeoutMs).toBe(DEFAULT_TIMEOUT_MS);
-    for (const bad of ["0", "-1", "1.5", "soon"]) {
+    for (const bad of ["0", "-1", "1.5", "soon", "2147483648", "1e12"]) {
       expect(() => loadConfig({ ...keys, LULU_TIMEOUT_MS: bad })).toThrow(LuluConfigError);
     }
   });

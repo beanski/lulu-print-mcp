@@ -12,6 +12,8 @@ export const BASE_URLS: Readonly<Record<LuluEnvironment, string>> = {
 export const TOKEN_PATH = "/auth/realms/glasstree/protocol/openid-connect/token";
 
 export const DEFAULT_TIMEOUT_MS = 30_000;
+/** Largest delay Node's timers support; anything bigger fires immediately. */
+export const MAX_TIMEOUT_MS = 2_147_483_647;
 
 export interface LuluConfig {
   clientKey: string;
@@ -53,9 +55,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): LuluConfig {
   let timeoutMs = DEFAULT_TIMEOUT_MS;
   if (env.LULU_TIMEOUT_MS !== undefined && env.LULU_TIMEOUT_MS.trim() !== "") {
     timeoutMs = Number(env.LULU_TIMEOUT_MS);
-    if (!Number.isInteger(timeoutMs) || timeoutMs <= 0) {
+    if (!Number.isInteger(timeoutMs) || timeoutMs <= 0 || timeoutMs > MAX_TIMEOUT_MS) {
       throw new LuluConfigError(
-        `LULU_TIMEOUT_MS must be a positive whole number of milliseconds, got "${env.LULU_TIMEOUT_MS}".`,
+        `LULU_TIMEOUT_MS must be a whole number of milliseconds from 1 to ${MAX_TIMEOUT_MS}, got "${env.LULU_TIMEOUT_MS}".`,
       );
     }
   }

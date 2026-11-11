@@ -18,9 +18,16 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      # Exit code 1 means the spec changed; 2 means the download failed,
+      # which fails the run without opening an issue.
       - id: check
-        run: node scripts/check-spec.mjs
-      - if: failure() && steps.check.outcome == 'failure'
+        run: |
+          set +e
+          node scripts/check-spec.mjs
+          code=$?
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+          exit $code
+      - if: failure() && steps.check.outputs.code == '1'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |

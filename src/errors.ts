@@ -9,9 +9,6 @@ export class LuluError extends Error {
 /** Missing or invalid configuration (environment variables). */
 export class LuluConfigError extends LuluError {}
 
-/** Input that passed the schema but breaks a rule that spans several fields. */
-export class LuluInputError extends LuluError {}
-
 /** Lulu refused the client key and secret, or the token endpoint misbehaved. */
 export class LuluAuthError extends LuluError {
   constructor(

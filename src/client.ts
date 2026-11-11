@@ -58,51 +58,55 @@ export class LuluClient {
    * Sends one request. GET requests are retried on 429/502/503/504 and network
    * errors; other methods never are, so an order is never placed twice.
    * A 401 refreshes the token and retries once, since that request never ran.
+   * Login failures throw LuluAuthError before anything is sent.
    */
   async request(req: LuluRequest): Promise<unknown> {
     const url = this.buildUrl(req);
     const canRetry = req.method === "GET";
     let refreshedToken = false;
+    let retries = 0;
 
-    for (let attempt = 0; ; attempt++) {
+    for (;;) {
+      const token = await this.tokens.getToken();
       let response: Response;
+      let body: unknown;
       try {
-        response = await this.send(url, req);
+        response = await this.send(url, req, token);
+        if (response.status === 401 && !refreshedToken) {
+          await response.body?.cancel();
+          refreshedToken = true;
+          this.tokens.invalidate();
+          continue;
+        }
+        if (canRetry && RETRYABLE_STATUSES.has(response.status) && retries < RETRY_DELAYS_MS.length) {
+          await response.body?.cancel();
+          await this.sleep(retryDelay(response, retries));
+          retries++;
+          continue;
+        }
+        // Inside the try: a timeout can also fire while the body is still arriving.
+        body = await readBody(response);
       } catch (error) {
-        if (canRetry && attempt < RETRY_DELAYS_MS.length) {
-          await this.sleep(RETRY_DELAYS_MS[attempt] ?? 0);
+        if (canRetry && retries < RETRY_DELAYS_MS.length) {
+          await this.sleep(RETRY_DELAYS_MS[retries] ?? 0);
+          retries++;
           continue;
         }
         const warning = canRetry
           ? ""
           : " The request may or may not have reached Lulu; check before trying again so nothing is done twice.";
         throw new LuluNetworkError(
-          `Could not reach Lulu for ${req.method} ${req.path}: ${errorMessage(error)}.${warning}`,
+          `Could not reach Lulu for ${req.method} ${req.path}: ${errorMessage(error).replace(/\.$/, "")}.${warning}`,
           { cause: error },
         );
       }
 
-      if (response.status === 401 && !refreshedToken) {
-        refreshedToken = true;
-        this.tokens.invalidate();
-        attempt--;
-        continue;
-      }
-
-      if (canRetry && RETRYABLE_STATUSES.has(response.status) && attempt < RETRY_DELAYS_MS.length) {
-        await response.body?.cancel();
-        await this.sleep(retryDelay(response, attempt));
-        continue;
-      }
-
-      const body = await readBody(response);
       if (!response.ok) throw new LuluApiError(response.status, req.method, req.path, body);
       return body;
     }
   }
 
-  private async send(url: URL, req: LuluRequest): Promise<Response> {
-    const token = await this.tokens.getToken();
+  private async send(url: URL, req: LuluRequest, token: string): Promise<Response> {
     const headers: Record<string, string> = {
       Authorization: `Bearer ${token}`,
       Accept: "application/json",

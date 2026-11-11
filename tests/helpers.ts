@@ -65,7 +65,7 @@ export function makeClient(
 
 /** Parses tool input the way the MCP SDK does before calling the handler. */
 export function parseInput(tool: ToolDefinition, input: unknown): Record<string, unknown> {
-  return z.object(tool.inputSchema).parse(input);
+  return z.strictObject(tool.inputSchema).parse(input);
 }
 
 // ------------------------------------------------------------------ the spec
@@ -179,8 +179,9 @@ export function writeSchema(schema: unknown): unknown {
 
 const ajv = new Ajv({ strict: false, allErrors: true });
 (addFormatsModule as unknown as (a: Ajv) => void)(ajv);
-ajv.addFormat("int32", true);
-ajv.addFormat("int64", true);
+// OpenAPI's integer formats: whole numbers in range (ajv doesn't know them).
+ajv.addFormat("int32", { type: "number", validate: (n: number) => Number.isInteger(n) && Math.abs(n) <= 2 ** 31 });
+ajv.addFormat("int64", { type: "number", validate: (n: number) => Number.isInteger(n) });
 
 export function bodyValidator(op: SpecOperation): ValidateFunction | undefined {
   const schema = requestBodySchema(op);
@@ -198,7 +199,12 @@ export function writablePaths(schema: unknown, prefix = ""): string[] {
   if (s.type === "array" || s.items) return writablePaths(s.items, `${prefix}[]`);
   const variants: Json[] = [...(s.oneOf ?? []), ...(s.anyOf ?? [])];
   const objectVariant = variants.find((v) => v.properties);
-  if (objectVariant && !s.properties) return writablePaths(objectVariant, prefix);
+  if (objectVariant && !s.properties) {
+    const paths = writablePaths(objectVariant, prefix);
+    // A string-or-object field can also be sent as a plain value at this path.
+    if (prefix && variants.some((v) => !v.properties)) paths.push(prefix);
+    return paths;
+  }
   if (!s.properties) return prefix ? [prefix] : [];
   const paths: string[] = [];
   for (const [name, prop] of Object.entries<Json>(s.properties)) {

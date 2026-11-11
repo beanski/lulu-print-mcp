@@ -22,46 +22,59 @@ export const COVER_DIMENSION_UNITS = ["pt", "mm", "inch"] as const;
 /** Foil stamp title and author text together may not exceed this (spec, "Linen Wrap Foil"). */
 export const FOIL_STAMP_MAX_COMBINED = 42;
 
-export const podPackageId = z
+/**
+ * `format: email`, checked with the same rule JSON Schema validators use
+ * (ajv-formats, full mode), so we accept exactly what the spec accepts.
+ */
+export const email = z
   .string()
-  .min(1)
-  .max(100)
-  .describe(
-    "Lulu product SKU (pod_package_id): trim size, ink, quality, binding, paper and finish. " +
-      "Dotted format, e.g. '0600X0900.BW.STD.PB.060UW444.MXX' (6x9in black-and-white standard paperback, matte). " +
-      "Lulu still accepts the older 27-character format without dots until 1 February 2027. " +
-      "Build one with Lulu's pricing calculator: https://developers.lulu.com/price-calculator",
+  .regex(
+    /^[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*@(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/i,
+    "must be an email address",
   );
+
+const POD_PACKAGE_ID_HELP =
+  "Lulu product SKU (pod_package_id): trim size, ink, quality, binding, paper and finish. " +
+  "Dotted format, e.g. '0600X0900.BW.STD.PB.060UW444.MXX' (6x9in black-and-white standard paperback, matte). " +
+  "Lulu still accepts the older 27-character format without dots until 1 February 2027. " +
+  "Build one with Lulu's pricing calculator: https://developers.lulu.com/price-calculator";
+
+/** pod_package_id where the spec gives no length limit. */
+export const podPackageId = z.string().describe(POD_PACKAGE_ID_HELP);
+
+/** pod_package_id on Print-Job line items, where the spec allows at most 100 characters. */
+export const lineItemPodPackageId = z.string().max(100).describe(POD_PACKAGE_ID_HELP);
 
 export const shippingLevel = z
   .enum(SHIPPING_LEVELS)
   .describe("Shipping service level, from slowest/cheapest (MAIL) to fastest (EXPRESS).");
 
-/** Path ids: letters, digits, '-' and '_' only, so they can't change the URL path. */
+/**
+ * Path ids: letters, digits, '-' and '_' only, so they can't change the URL path.
+ * Stricter than the spec's plain string on purpose; see docs/spec-notes.md.
+ */
 export const resourceId = z
   .string()
   .regex(/^[A-Za-z0-9_-]+$/, "must contain only letters, digits, '-' and '_'");
 
-export const integerId = z.number().int().positive();
+export const integerId = z.number().int();
 
-export const httpUrl = z
-  .url({ protocol: /^https?$/ })
-  .describe(
-    "Public http(s) URL Lulu downloads the file from. Basic-auth credentials in the URL are allowed.",
-  );
+export const fileUrl = z
+  .string()
+  .describe("Public URL Lulu downloads the file from. Basic-auth credentials in the URL are allowed.");
 
-export const pageCount = z.number().int().positive();
-export const quantity = z.number().int().positive();
+export const pageCount = z.number().int();
+/** The spec types quantities as `number` with `format: int32`. */
+export const quantity = z.number().int();
 
 export const pagination = {
-  page: z.number().int().positive().optional().describe("Result page, default 1."),
-  page_size: z.number().int().positive().optional().describe("Results per page, default 100."),
+  page: z.number().int().optional().describe("Result page, default 1."),
+  page_size: z.number().int().optional().describe("Results per page, default 100."),
 };
 
 const isoTimestamp = (what: string) =>
   z
     .string()
-    .min(1)
     .optional()
     .describe(`Only ${what} this ISO 8601 date or timestamp (UTC), e.g. '2026-11-09' or '2026-11-09T09:30:08Z'.`);
 
@@ -77,7 +90,6 @@ export const modifiedFilters = {
 
 export const printJobStatusFilter = z
   .string()
-  .min(1)
   .optional()
   .describe(
     "Filter by status: CREATED, REJECTED, UNPAID, PAYMENT_IN_PROGRESS, PRODUCTION_READY, " +
@@ -85,25 +97,25 @@ export const printJobStatusFilter = z
   );
 
 /** `shipping_address` of a cost calculation (spec: Print-Job-cost-calculations_create). */
-export const costShippingAddress = z.object({
+export const costShippingAddress = z.strictObject({
   name: z.string().max(35).optional(),
   organization: z.string().max(30).optional(),
-  street1: z.string().min(1).max(30),
+  street1: z.string().max(30),
   street2: z.string().max(30).optional(),
-  city: z.string().min(1).max(30),
+  city: z.string().max(30),
   state_code: z.string().optional().describe("State, province or region code, e.g. 'NY'."),
-  postcode: z.string().min(1).max(64),
+  postcode: z.string().max(64),
   country_code: z.string().length(2).describe("ISO 3166-1 alpha-2 country code, e.g. 'US'."),
-  phone_number: z.string().min(1).max(20),
-  email: z.email().optional(),
+  phone_number: z.string().max(20),
+  email: email.optional(),
   is_business: z.boolean().optional(),
   title: z.enum(ADDRESS_TITLES).optional(),
 });
 
 /** `shipping_address` of a Print-Job (spec: Print-Jobs_create). Name and email are required here. */
 export const printJobShippingAddress = costShippingAddress.extend({
-  name: z.string().min(1).max(35),
-  email: z.email(),
+  name: z.string().max(35),
+  email: email,
   recipient_tax_id: z
     .string()
     .optional()
@@ -111,7 +123,7 @@ export const printJobShippingAddress = costShippingAddress.extend({
 });
 
 /** `shipping_address` of a shipping-options request (spec: retrieve-shipping-options). */
-export const shippingOptionsAddress = z.object({
+export const shippingOptionsAddress = z.strictObject({
   name: z.string().optional(),
   organization: z.string().optional(),
   street1: z.string().optional(),
@@ -125,14 +137,21 @@ export const shippingOptionsAddress = z.object({
   is_postbox: z.boolean().optional(),
 });
 
-export const pricedLineItem = z.object({
+export const pricedLineItem = z.strictObject({
   pod_package_id: podPackageId,
   page_count: pageCount.describe("Number of interior pages."),
   quantity,
 });
 
-export const fileSource = z.object({
-  source_url: httpUrl,
+/** Shipping-options line items: the spec types quantity as a plain `number`. */
+export const shippingOptionsLineItem = z.strictObject({
+  pod_package_id: podPackageId,
+  page_count: pageCount.describe("Number of interior pages."),
+  quantity: z.number(),
+});
+
+export const fileSource = z.strictObject({
+  source_url: fileUrl,
   source_md5_sum: z
     .string()
     .optional()
@@ -145,10 +164,10 @@ export const fileSource = z.object({
 });
 
 export const newPrintJobLineItem = z
-  .object({
+  .strictObject({
     title: z.string().max(255).optional().describe("Book title, shown on Lulu's side."),
     quantity,
-    pod_package_id: podPackageId,
+    pod_package_id: lineItemPodPackageId,
     external_id: z.string().optional().describe("Your own reference for this line item."),
     interior: fileSource.describe("Interior PDF."),
     cover: fileSource.describe("Cover PDF (one spread: back, spine, front)."),
@@ -170,18 +189,18 @@ export const newPrintJobLineItem = z
     },
   );
 
-export const reprintLineItem = z.object({
+export const reprintLineItem = z.strictObject({
   title: z.string().max(255).optional(),
   quantity,
   printable_id: z
     .uuid()
     .describe("printable_id of a line item from an earlier, successfully created Print-Job."),
-  pod_package_id: podPackageId.optional(),
+  pod_package_id: lineItemPodPackageId.optional(),
   external_id: z.string().optional(),
 });
 
 export const printJobCommon = {
-  contact_email: z.email().describe("Email Lulu uses for questions about this Print-Job."),
+  contact_email: email.describe("Email Lulu uses for questions about this Print-Job."),
   shipping_level: shippingLevel,
   shipping_address: printJobShippingAddress,
   external_id: z.string().optional().describe("Your own order number or reference."),
@@ -194,4 +213,4 @@ export const printJobCommon = {
     .describe("Minutes (60 to 2880) to wait before production starts, leaving time to cancel."),
 };
 
-export const webhookTopics = z.array(z.enum(WEBHOOK_TOPICS)).min(1);
+export const webhookTopics = z.array(z.enum(WEBHOOK_TOPICS));

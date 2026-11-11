@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { LuluClient } from "../src/client.js";
-import { LuluApiError, LuluNetworkError } from "../src/errors.js";
+import { LuluApiError, LuluAuthError, LuluNetworkError } from "../src/errors.js";
 import { VERSION } from "../src/version.js";
 import { fakeLulu, jsonResponse, makeClient, testConfig } from "./helpers.js";
 
@@ -184,6 +184,55 @@ describe("LuluClient", () => {
     };
     const client = new LuluClient({ ...testConfig, timeoutMs: 20 }, { fetch: slowFetch, sleep: () => Promise.resolve() });
     await expect(client.request({ method: "POST", path: "/a/" })).rejects.toThrow(/timeout|aborted/i);
+  });
+
+  it.each(["GET", "POST"] as const)("reports bad keys as a login error on %s, without sending or retrying", async (method) => {
+    let tokenCalls = 0;
+    let apiCalls = 0;
+    const fetch = (url: string | URL) => {
+      if (String(url).includes("/auth/")) {
+        tokenCalls++;
+        return Promise.resolve(jsonResponse({ error: "invalid_client" }, 401));
+      }
+      apiCalls++;
+      return Promise.resolve(jsonResponse({}));
+    };
+    const error = (await makeClient({ fetch })
+      .request({ method, path: "/print-jobs/" })
+      .catch((e: unknown) => e)) as Error;
+    expect(error).toBeInstanceOf(LuluAuthError);
+    expect(error.message).not.toMatch(/may or may not|Could not reach Lulu for/);
+    expect(tokenCalls).toBe(1);
+    expect(apiCalls).toBe(0);
+  });
+
+  it("ends network error messages with a single full stop", async () => {
+    const fake = fakeLulu(() => {
+      throw new Error("connection reset.");
+    });
+    await expect(makeClient(fake).request({ method: "GET", path: "/a/" })).rejects.toThrow(
+      /^Could not reach Lulu for GET \/a\/: connection reset\.$/,
+    );
+  });
+
+  it("treats a failure while reading the response like a network error", async () => {
+    const brokenBody = () =>
+      new Response(
+        new ReadableStream({
+          start(controller) {
+            controller.error(new Error("The operation was aborted due to timeout"));
+          },
+        }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      );
+    const post = await makeClient(fakeLulu(brokenBody))
+      .request({ method: "POST", path: "/print-jobs/", body: {} })
+      .catch((e: unknown) => e as Error);
+    expect(post).toBeInstanceOf(LuluNetworkError);
+    expect((post as Error).message).toMatch(/aborted due to timeout.*may or may not have reached Lulu/);
+
+    const responses = [brokenBody(), jsonResponse({ ok: true })];
+    expect(await makeClient(fakeLulu(() => responses.shift()!)).request({ method: "GET", path: "/a/" })).toEqual({ ok: true });
   });
 
   it("works with the default fetch and sleep", () => {

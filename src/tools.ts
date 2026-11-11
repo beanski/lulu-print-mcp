@@ -9,7 +9,7 @@ import {
   costShippingAddress,
   COVER_DIMENSION_UNITS,
   fileSource,
-  httpUrl,
+  fileUrl,
   integerId,
   modifiedFilters,
   newPrintJobLineItem,
@@ -23,11 +23,11 @@ import {
   resourceId,
   shippingLevel,
   shippingOptionsAddress,
+  shippingOptionsLineItem,
   timeFilters,
   webhookTopics,
   WEBHOOK_TOPICS,
 } from "./schemas.js";
-import { LuluInputError } from "./errors.js";
 
 export interface ToolDefinition<Shape extends z.ZodRawShape = z.ZodRawShape> {
   name: string;
@@ -73,7 +73,7 @@ export const TOOLS: readonly ToolDefinition[] = [
       "Returns per-line-item costs, shipping cost, fees and totals.",
     operation: { method: "POST", specPath: "/print-job-cost-calculations/" },
     inputSchema: {
-      line_items: z.array(pricedLineItem).min(1),
+      line_items: z.array(pricedLineItem),
       shipping_address: costShippingAddress,
       shipping_option: shippingLevel,
     },
@@ -92,20 +92,19 @@ export const TOOLS: readonly ToolDefinition[] = [
       ...timeFilters,
       ...modifiedFilters,
       status: printJobStatusFilter,
-      id: z.string().min(1).optional().describe("Filter by Print-Job id."),
-      order_id: z.string().min(1).optional().describe("Filter by order id."),
+      id: z.string().optional().describe("Filter by Print-Job id."),
+      order_id: z.string().optional().describe("Filter by order id."),
       exclude_line_items: z
         .boolean()
         .optional()
         .describe("Leave line items out of the response, for shorter results."),
       search: z
         .string()
-        .min(1)
         .optional()
         .describe(
           "Search ids, external ids, order id, status, line item ids/titles/tracking ids and shipping address.",
         ),
-      ordering: z.string().min(1).optional().describe("Field to sort by; prefix with '-' for descending."),
+      ordering: z.string().optional().describe("Field to sort by; prefix with '-' for descending."),
     },
     annotations: READ,
     buildRequest: (input) => ({ method: "GET", path: "/print-jobs/", query: input }),
@@ -121,7 +120,7 @@ export const TOOLS: readonly ToolDefinition[] = [
       "and the files with validate_interior_file / validate_cover_file first. " +
       "Set production_delay to leave time to cancel.",
     operation: { method: "POST", specPath: "/print-jobs/" },
-    inputSchema: { ...printJobCommon, line_items: z.array(newPrintJobLineItem).min(1) },
+    inputSchema: { ...printJobCommon, line_items: z.array(newPrintJobLineItem) },
     annotations: CREATE,
     buildRequest: ({ line_items, ...rest }) => ({
       method: "POST",
@@ -154,7 +153,7 @@ export const TOOLS: readonly ToolDefinition[] = [
     // The spec lists reprints as a separate operation on the same endpoint; its
     // path key carries a hair space (U+200A) to stay unique.
     operation: { method: "POST", specPath: "/print-jobs/ " },
-    inputSchema: { ...printJobCommon, line_items: z.array(reprintLineItem).min(1) },
+    inputSchema: { ...printJobCommon, line_items: z.array(reprintLineItem) },
     annotations: CREATE,
     buildRequest: (input) => ({ method: "POST", path: "/print-jobs/", body: input }),
   }),
@@ -169,8 +168,8 @@ export const TOOLS: readonly ToolDefinition[] = [
       ...timeFilters,
       ...modifiedFilters,
       status: printJobStatusFilter,
-      id: z.string().min(1).optional().describe("Filter by Print-Job id."),
-      ordering: z.string().min(1).optional().describe("Field to sort by."),
+      id: z.string().optional().describe("Filter by Print-Job id."),
+      ordering: z.string().optional().describe("Field to sort by."),
     },
     annotations: READ,
     buildRequest: (input) => ({ method: "GET", path: "/print-jobs/statistics/", query: input }),
@@ -231,9 +230,9 @@ export const TOOLS: readonly ToolDefinition[] = [
       "Only the country is required; a fuller address gives more accurate results.",
     operation: { method: "POST", specPath: "/shipping-options/" },
     inputSchema: {
-      line_items: z.array(pricedLineItem).min(1),
+      line_items: z.array(shippingOptionsLineItem),
       shipping_address: shippingOptionsAddress,
-      currency: z.string().min(1).optional().describe("Currency for prices, e.g. 'USD'."),
+      currency: z.string().optional().describe("Currency for prices, e.g. 'USD'."),
     },
     annotations: { ...READ, idempotentHint: true },
     buildRequest: (input) => ({ method: "POST", path: "/shipping-options/", body: input }),
@@ -248,7 +247,7 @@ export const TOOLS: readonly ToolDefinition[] = [
       "e.g. PRINT_JOB_STATUS_CHANGED when an order changes status.",
     operation: { method: "POST", specPath: "/webhooks/" },
     inputSchema: {
-      url: httpUrl.describe("URL that will receive the event POSTs."),
+      url: z.string().describe("URL that will receive the event POSTs."),
       topics: webhookTopics,
     },
     annotations: CREATE,
@@ -278,21 +277,20 @@ export const TOOLS: readonly ToolDefinition[] = [
   defineTool({
     name: "update_webhook",
     title: "Update webhook",
-    description: "Change a webhook's URL or topics, or switch it on or off. Give at least one field.",
+    description: "Change a webhook's URL or topics, or switch it on or off.",
     operation: { method: "PATCH", specPath: "/webhooks/{id}/" },
     inputSchema: {
       id: resourceId.describe("Webhook id."),
-      url: httpUrl.describe("New URL that will receive the event POSTs.").optional(),
+      url: z.string().optional().describe("New URL that will receive the event POSTs."),
       topics: webhookTopics.optional(),
       is_active: z.boolean().optional().describe("false pauses the webhook, true resumes it."),
     },
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true },
-    buildRequest: ({ id, ...changes }) => {
-      if (changes.url === undefined && changes.topics === undefined && changes.is_active === undefined) {
-        throw new LuluInputError("update_webhook needs at least one of url, topics or is_active.");
-      }
-      return { method: "PATCH", path: at("/webhooks/{id}/", { id }), body: changes };
-    },
+    buildRequest: ({ id, ...changes }) => ({
+      method: "PATCH",
+      path: at("/webhooks/{id}/", { id }),
+      body: changes,
+    }),
   }),
 
   defineTool({
@@ -330,7 +328,7 @@ export const TOOLS: readonly ToolDefinition[] = [
       ...pagination,
       ...timeFilters,
       is_success: z.boolean().optional().describe("true for successful deliveries only, false for failed."),
-      response_code: z.string().min(1).optional().describe("Filter by the HTTP status your URL returned."),
+      response_code: z.string().optional().describe("Filter by the HTTP status your URL returned."),
       webhook_id: z.uuid().optional().describe("Only deliveries for this webhook."),
     },
     annotations: READ,
@@ -347,7 +345,7 @@ export const TOOLS: readonly ToolDefinition[] = [
       "checks the file fits that product.",
     operation: { method: "POST", specPath: "/validate-interior/" },
     inputSchema: {
-      source_url: httpUrl,
+      source_url: fileUrl,
       pod_package_id: podPackageId.optional(),
     },
     annotations: CREATE,
@@ -386,7 +384,7 @@ export const TOOLS: readonly ToolDefinition[] = [
       "with the returned id until the status is NORMALIZED or ERROR.",
     operation: { method: "POST", specPath: "/validate-cover/" },
     inputSchema: {
-      source_url: httpUrl,
+      source_url: fileUrl,
       pod_package_id: podPackageId,
       interior_page_count: pageCount.describe("Number of interior pages."),
     },

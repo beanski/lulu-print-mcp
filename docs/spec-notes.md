@@ -31,6 +31,16 @@ New Print-Jobs can name their files in three ways:
 
 `create_print_job` always uses the first form. `reprint_print_job` covers `printable_id`. The shorthand does the same job as the first form, so no tool exposes it.
 
-## 6. Response formats
+## 6. Where the tools are stricter than the spec
+
+There are only three places, and each one is tested:
+
+- **Path ids** (`{id}` in a URL) may only contain letters, digits, `-` and `_`. The spec just says "string", but this stops an id like `../webhooks` from changing which endpoint is called.
+- **New orders need `pod_package_id`, an interior file and a cover file on every line item.** The spec makes these optional because a line item can use a `printable_id` instead, which is what `reprint_print_job` is for. Without them there is nothing to print.
+- **Unknown fields are rejected.** Lulu's schemas don't forbid extra fields, but an assistant that misspells one (for example `state` instead of `state_code`) should get an error, not an order without that field.
+
+Every other rule is checked against the spec by `tests/spec-constraints.test.ts`. That test reads each required field, length, range, enum, type and format from the spec, and checks that the tools accept and reject exactly the same values.
+
+## 7. Response formats
 
 Some money fields come back as numbers in one endpoint and strings in another. The tools pass Lulu's responses through unchanged instead of parsing them into fixed types, so a change in a response's shape can't break a tool.

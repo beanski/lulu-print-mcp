@@ -1,12 +1,11 @@
 /** Inputs that break the spec's rules are rejected before anything reaches Lulu. */
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
-import { LuluInputError } from "../src/errors.js";
 import { TOOLS } from "../src/tools.js";
 import { FIXTURES } from "./fixtures.js";
 
 const tool = (name: string) => TOOLS.find((t) => t.name === name)!;
-const accepts = (name: string, input: unknown) => z.object(tool(name).inputSchema).safeParse(input).success;
+const accepts = (name: string, input: unknown) => z.strictObject(tool(name).inputSchema).safeParse(input).success;
 
 /** Deep copy of a fixture with one change applied. */
 function variant(name: string, change: (input: any) => void, kind: "minimal" | "maximal" = "maximal") {
@@ -61,13 +60,12 @@ describe("address limits from the spec", () => {
 });
 
 describe("print jobs", () => {
-  it("accepts dotted, legacy and up-to-100-character product codes", () => {
+  it("accepts dotted and legacy product codes, and up to 100 characters on order line items", () => {
     expect(accepts("calculate_cover_dimensions", FIXTURES.calculate_cover_dimensions!.minimal)).toBe(true);
     expect(accepts("calculate_cover_dimensions", FIXTURES.calculate_cover_dimensions!.maximal)).toBe(true);
-    const at = (length: number) => ({ pod_package_id: "X".repeat(length), interior_page_count: 10 });
-    expect(accepts("calculate_cover_dimensions", at(100))).toBe(true);
-    expect(accepts("calculate_cover_dimensions", at(101))).toBe(false);
-    expect(accepts("calculate_cover_dimensions", at(0))).toBe(false);
+    const sku = (length: number) => variant("create_print_job", (i) => (i.line_items[0].pod_package_id = "X".repeat(length)));
+    expect(accepts("create_print_job", sku(100))).toBe(true);
+    expect(accepts("create_print_job", sku(101))).toBe(false);
   });
 
   it("keeps production_delay between 60 and 2880 minutes", () => {
@@ -96,18 +94,9 @@ describe("print jobs", () => {
     expect(accepts("reprint_print_job", variant("reprint_print_job", (i) => (i.line_items[0].printable_id = "abc")))).toBe(false);
   });
 
-  it("needs at least one line item with a whole, positive quantity", () => {
-    expect(accepts("create_print_job", variant("create_print_job", (i) => (i.line_items = [])))).toBe(false);
-    for (const quantity of [0, -1, 1.5]) {
-      expect(accepts("create_print_job", variant("create_print_job", (i) => (i.line_items[0].quantity = quantity)))).toBe(false);
-    }
-  });
-
-  it("only accepts http and https file URLs", () => {
-    for (const url of ["ftp://files.example.com/a.pdf", "file:///etc/passwd", "javascript:alert(1)", "not a url"]) {
-      expect(accepts("validate_interior_file", { source_url: url })).toBe(false);
-    }
-    expect(accepts("validate_interior_file", { source_url: "https://user:pass@files.example.com/a.pdf" })).toBe(true);
+  it("needs whole-number quantities", () => {
+    expect(accepts("create_print_job", variant("create_print_job", (i) => (i.line_items[0].quantity = 1.5)))).toBe(false);
+    expect(accepts("get_shipping_options", { line_items: [{ pod_package_id: "X", page_count: 1, quantity: 1.5 }], shipping_address: { country: "US" } })).toBe(true);
   });
 });
 
@@ -129,20 +118,27 @@ describe("ids", () => {
 });
 
 describe("webhooks", () => {
-  it("needs at least one topic, from the spec's list", () => {
-    expect(accepts("create_webhook", { url: "https://hooks.example.com", topics: [] })).toBe(false);
+  it("only allows topics from the spec's list", () => {
     expect(accepts("create_webhook", { url: "https://hooks.example.com", topics: ["ORDER_PAID"] })).toBe(false);
     expect(accepts("test_webhook", { id: "abc", topic: "ORDER_PAID" })).toBe(false);
   });
 
-  it("refuses an update that changes nothing", () => {
-    const update = tool("update_webhook");
-    expect(() => update.buildRequest({ id: "abc" })).toThrow(LuluInputError);
+  it("allows an update with no changes, as the spec does", () => {
+    expect(accepts("update_webhook", { id: "abc" })).toBe(true);
   });
 });
 
 describe("cover dimensions", () => {
   it("only allows pt, mm or inch", () => {
     expect(accepts("calculate_cover_dimensions", { ...FIXTURES.calculate_cover_dimensions!.minimal, unit: "cm" })).toBe(false);
+  });
+});
+
+describe("unknown fields", () => {
+  it("rejects misspelt or misplaced fields instead of dropping them", () => {
+    // get_shipping_options uses `state`, orders use `state_code`: an easy mix-up.
+    expect(accepts("create_print_job", variant("create_print_job", (i) => (i.shipping_address.state = "UT")))).toBe(false);
+    expect(accepts("create_print_job", variant("create_print_job", (i) => (i.line_items[0].colour = "red")))).toBe(false);
+    expect(accepts("list_print_jobs", { statuss: "SHIPPED" })).toBe(false);
   });
 });

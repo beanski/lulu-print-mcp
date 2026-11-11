@@ -3,13 +3,13 @@
 An [MCP](https://modelcontextprotocol.io) server for the [Lulu Print API](https://developers.lulu.com/). It lets Claude and other AI assistants price, validate, order and track print-on-demand books.
 
 - **Covers the whole API.** There is one tool for each of the 22 operations in Lulu's published OpenAPI spec, and a test fails if any operation is missing.
-- **Built exactly to the spec.** Every request is checked against Lulu's own spec in the test suite. The few places where the spec contradicts itself are written up in [docs/spec-notes.md](docs/spec-notes.md).
+- **Built exactly to the spec.** Every input rule and every request is checked against Lulu's own spec in the test suite. The few places where the spec contradicts itself are written up in [docs/spec-notes.md](docs/spec-notes.md).
 - **Safe by default.** It uses Lulu's **sandbox** unless you choose production, so you can't place a real order by accident.
 - **Ready for Lulu's new product codes.** It accepts the dotted `pod_package_id` format, and the old 27-character format until Lulu retires it on 1 February 2027.
 
 ## Install
 
-You need [Node.js](https://nodejs.org) 20 or newer and Lulu API keys. Get your keys from the [sandbox developer portal](https://developers.sandbox.lulu.com/) (free test orders) or the [production portal](https://developers.lulu.com/) (real orders). The two environments use different keys.
+You need [Node.js](https://nodejs.org) 22 or newer and Lulu API keys. Get your keys from the [sandbox developer portal](https://developers.sandbox.lulu.com/) (free test orders) or the [production portal](https://developers.lulu.com/) (real orders). The two environments use different keys.
 
 ### Claude Desktop
 
@@ -102,6 +102,7 @@ const jobs = await client.request({ method: "GET", path: "/print-jobs/", query: 
 ## How it's kept exact
 
 - `spec/openapi_public.yml` is a byte-for-byte copy of [Lulu's published spec](https://api.lulu.com/api-docs/openapi-specs/openapi_public.yml).
+- The rule tests read every required field, length limit, range, enum, type and format from the spec, and check that each tool accepts and rejects exactly the same values. If Lulu changes a rule, the failing test names the field.
 - The contract tests check that:
   - every operation in the spec has exactly one tool;
   - every request each tool sends passes validation against the spec;

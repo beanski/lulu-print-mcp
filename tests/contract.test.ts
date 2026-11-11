@@ -26,6 +26,8 @@ import {
  */
 const NOT_EXPOSED: Record<string, Record<string, string>> = {
   create_print_job: {
+    "line_items[].cover": "shorthand URL string for printable_normalization.cover",
+    "line_items[].interior": "shorthand URL string for printable_normalization.interior",
     "line_items[].cover.source_url": "shorthand for printable_normalization.cover, which the tool sends instead",
     "line_items[].cover.source_md5_sum": "shorthand for printable_normalization.cover",
     "line_items[].interior.source_url": "shorthand for printable_normalization.interior",
@@ -33,6 +35,8 @@ const NOT_EXPOSED: Record<string, Record<string, string>> = {
     "line_items[].printable_id": "re-orders use reprint_print_job",
   },
   reprint_print_job: {
+    "line_items[].cover": "new files use create_print_job",
+    "line_items[].interior": "new files use create_print_job",
     "line_items[].cover.source_url": "new files use create_print_job",
     "line_items[].cover.source_md5_sum": "new files use create_print_job",
     "line_items[].interior.source_url": "new files use create_print_job",

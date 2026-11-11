@@ -1,4 +1,5 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { z } from "zod";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import type { LuluClient } from "./client.js";
 import { LuluError } from "./errors.js";
@@ -30,7 +31,8 @@ export function createLuluServer(client: LuluClient): McpServer {
       {
         title: tool.title,
         description: tool.description,
-        inputSchema: tool.inputSchema,
+        // Strict, so a misspelt field is an error instead of being silently dropped.
+        inputSchema: z.strictObject(tool.inputSchema),
         annotations: { title: tool.title, ...tool.annotations },
       },
       (args: Record<string, unknown>) => runTool(client, tool, args),
