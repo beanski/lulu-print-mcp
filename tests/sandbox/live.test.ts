@@ -22,6 +22,8 @@ const INTERIOR = "https://www.dropbox.com/s/r20orb8umqjzav9/lulu_trade_interior_
 const COVER = "https://www.dropbox.com/s/7bv6mg2tj0h3l0r/lulu_trade_perfect_template.pdf?dl=1&raw=1";
 const PAGES = 32;
 
+const pause = () => new Promise((resolve) => setTimeout(resolve, 10_000));
+
 const address = {
   name: "Sandbox Test",
   street1: "101 Main St",
@@ -96,15 +98,25 @@ describe.skipIf(!client)("Lulu sandbox", () => {
       expect(job.line_items[0].pod_package_id).toBe(SKU);
       expect((await call("get_print_job", { id })).id).toBe(job.id);
       expect(await call("get_print_job_status", { id })).toHaveProperty("name");
-      await call("get_print_job_costs", { id });
 
       // Lulu assigns printable_id once it has processed the files.
       let printableId: string | undefined;
       for (let i = 0; i < 36 && !printableId; i++) {
         printableId = (await call("get_print_job", { id })).line_items[0].printable_id ?? undefined;
-        if (!printableId) await new Promise((resolve) => setTimeout(resolve, 10_000));
+        if (!printableId) await pause();
       }
       expect(printableId, "printable_id never appeared").toBeTruthy();
+
+      // Costs exist only after Lulu has priced the job; until then it answers 404.
+      const costsTool = TOOLS.find((t) => t.name === "get_print_job_costs")!;
+      let costs = await runTool(client!, costsTool, { id });
+      for (let i = 0; i < 18 && costs.isError; i++) {
+        expect((costs.content[0] as { text: string }).text).toMatch(/No costs are available/);
+        await pause();
+        costs = await runTool(client!, costsTool, { id });
+      }
+      // Same check through the shared helper, which fails with Lulu's message.
+      await call("get_print_job_costs", { id });
 
       const reprint = await call("reprint_print_job", {
         ...order,
@@ -124,8 +136,9 @@ describe.skipIf(!client)("Lulu sandbox", () => {
     const id = String(hook.id);
     try {
       expect((await call("get_webhook", { id })).url).toBe("https://example.com/lulu-print-mcp-test");
-      expect((await call("update_webhook", { id, is_active: false })).is_active).toBe(false);
+      // Lulu only sends test events to active webhooks.
       await call("test_webhook", { id, topic: "PRINT_JOB_STATUS_CHANGED" });
+      expect((await call("update_webhook", { id, is_active: false })).is_active).toBe(false);
       expect(await call("list_webhooks", {})).toBeTruthy();
       await call("list_webhook_submissions", { webhook_id: id });
     } finally {

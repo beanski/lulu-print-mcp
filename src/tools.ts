@@ -188,7 +188,9 @@ export const TOOLS: readonly ToolDefinition[] = [
   defineTool({
     name: "get_print_job_costs",
     title: "Get print job costs",
-    description: "Get the cost breakdown of an existing Print-Job: line items, shipping, fees, tax, totals.",
+    description:
+      "Get the cost breakdown of an existing Print-Job: line items, shipping, fees, tax, totals. " +
+      "Lulu has no costs until it has processed the job's files, and answers 'No costs are available' before then.",
     operation: { method: "GET", specPath: "/print-jobs/{id}/costs/" },
     inputSchema: { id: resourceId.describe("Print-Job id.") },
     annotations: READ,
@@ -306,7 +308,7 @@ export const TOOLS: readonly ToolDefinition[] = [
   defineTool({
     name: "test_webhook",
     title: "Send test webhook",
-    description: "Ask Lulu to send a sample event of the given topic to a webhook's URL.",
+    description: "Ask Lulu to send a sample event of the given topic to a webhook's URL. The webhook must be active.",
     operation: { method: "POST", specPath: "/webhooks/{id}/test-submission/{topic}/" },
     inputSchema: {
       id: resourceId.describe("Webhook id."),
