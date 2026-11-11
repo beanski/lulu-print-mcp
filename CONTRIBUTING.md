@@ -38,4 +38,4 @@ LULU_SANDBOX_CLIENT_KEY=... LULU_SANDBOX_CLIENT_SECRET=... npm run test:sandbox
 
 1. Update `version` in `package.json` and `src/version.ts`, and add a `## <version>` section to `CHANGELOG.md`.
 2. Merge to `main` and wait for CI to pass.
-3. Push a tag for the version, for example `git tag v1.0.1 && git push origin v1.0.1`. The release workflow publishes to npm and creates the GitHub release with the changelog section as its notes.
+3. Start the release workflow: either run it from the Actions tab on `main`, or push a tag for the version (for example `git tag v1.0.1 && git push origin v1.0.1`). It publishes to npm, then creates the GitHub release and tag, with the changelog section as its notes.
