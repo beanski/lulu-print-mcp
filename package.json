@@ -1,0 +1,71 @@
+{
+  "name": "lulu-print-mcp",
+  "version": "1.0.0",
+  "description": "MCP server for the Lulu Print API: print-on-demand books from Claude and other AI assistants.",
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "lulu",
+    "print-on-demand",
+    "books",
+    "claude"
+  ],
+  "license": "MIT",
+  "author": "Beanski LLC",
+  "homepage": "https://github.com/beanski/lulu-print-mcp#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/beanski/lulu-print-mcp.git"
+  },
+  "bugs": {
+    "url": "https://github.com/beanski/lulu-print-mcp/issues"
+  },
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "bin": {
+    "lulu-print-mcp": "dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "test:sandbox": "vitest run --config vitest.sandbox.config.ts",
+    "check": "npm run typecheck && npm run lint && npm run test:coverage && npm run build",
+    "spec:check": "node scripts/check-spec.mjs",
+    "prepublishOnly": "npm run check"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.2",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^22.20.5",
+    "@vitest/coverage-v8": "^5.1.0",
+    "ajv": "^8.20.0",
+    "ajv-formats": "^3.0.1",
+    "eslint": "^10.14.0",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.72.2",
+    "vitest": "^5.1.0",
+    "yaml": "^2.9.1"
+  }
+}

@@ -1,0 +1,34 @@
+name: Lulu spec drift
+
+# Weekly check that Lulu hasn't changed its published API spec.
+on:
+  schedule:
+    - cron: "17 14 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  compare:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - id: check
+        run: node scripts/check-spec.mjs
+      - if: failure() && steps.check.outcome == 'failure'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          title="Lulu's API spec has changed"
+          if ! gh issue list --state open --search "$title in:title" --json number --jq '.[0].number' | grep -q .; then
+            gh issue create --title "$title" --body "The weekly check found that https://api.lulu.com/api-docs/openapi-specs/openapi_public.yml no longer matches spec/openapi_public.yml.
+
+          1. Run \`npm run spec:check -- --update\`
+          2. Run \`npm test\`: the contract tests list every tool that no longer matches
+          3. Update the tools, tests and CHANGELOG, then release"
+          fi
