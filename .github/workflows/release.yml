@@ -1,15 +1,17 @@
 name: Release
 
-# Publishes to npm when a GitHub release is published.
+# Pushing a version tag (e.g. v1.0.1) publishes that version to npm and then
+# creates the matching GitHub release. The tag must match package.json.
+#
 # The very first publish needs an NPM_TOKEN repository secret. After that,
 # set up npm trusted publishing for this workflow and delete the secret:
 # npm then authenticates with GitHub's OIDC token instead.
 on:
-  release:
-    types: [published]
+  push:
+    tags: ["v*"]
 
 permissions:
-  contents: read
+  contents: write
   id-token: write
 
 jobs:
@@ -23,7 +25,14 @@ jobs:
           registry-url: https://registry.npmjs.org
       - run: npm install -g npm@latest
       - run: npm ci
-      - run: test "v$(node -p 'require("./package.json").version')" = "${{ github.event.release.tag_name }}"
+      - run: test "v$(node -p 'require("./package.json").version')" = "${{ github.ref_name }}"
       - run: npm publish --provenance --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      - name: Create the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          awk -v v="## $version" '$0==v{f=1;next} /^## /{f=0} f' CHANGELOG.md > notes.md
+          gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --notes-file notes.md --verify-tag

@@ -14,7 +14,7 @@ npm run check
 ## When Lulu changes its API
 
 1. Run `npm run spec:check -- --update`. This replaces `spec/openapi_public.yml` with Lulu's live copy.
-2. Run `npm test`. The contract tests list every tool that no longer matches the spec.
+2. Run `npm test`. The tests name every tool and field that no longer matches the spec.
 3. Update `src/schemas.ts` and `src/tools.ts` until the tests pass, and add any new fields to `tests/fixtures.ts`.
 4. If the spec contradicts itself, record it in `docs/spec-notes.md` with a test.
 5. Add an entry to `CHANGELOG.md`.
@@ -33,3 +33,9 @@ Sandbox keys are free from https://developers.sandbox.lulu.com/.
 ```bash
 LULU_SANDBOX_CLIENT_KEY=... LULU_SANDBOX_CLIENT_SECRET=... npm run test:sandbox
 ```
+
+## Releasing
+
+1. Update `version` in `package.json` and `src/version.ts`, and add a `## <version>` section to `CHANGELOG.md`.
+2. Merge to `main` and wait for CI to pass.
+3. Push a tag for the version, for example `git tag v1.0.1 && git push origin v1.0.1`. The release workflow publishes to npm and creates the GitHub release with the changelog section as its notes.
